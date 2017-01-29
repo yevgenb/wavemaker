@@ -1,3 +1,4 @@
+#include <Streaming.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
@@ -10,52 +11,29 @@
 #include <ArduinoJson.h>
 #include <Time.h>
 
+struct info {
+  unsigned int mode;
+  unsigned int duration; // Cycle duration in milliseconds for the mode 3.
+  
+  // manual mode values
+  byte Pump1Speed;
+  byte Pump2Speed;
+  
+  // night mode:
+  boolean night_mode_enabled;
+  byte night_mode_start_hour;
+  byte night_mode_start_min;
+  byte night_mode_end_hour;
+  byte night_mode_end_min;
+};
 
+SoftwareSerial swSer(D6, D5, false, 256);
 
 void setup(void){
   SPIFFS.begin();
-  Serial.begin(115200);
-  Serial1.begin(57600);
-  
-  // OTA part:
-  ArduinoOTA.onStart([]() {
-    Serial.println("Start");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  
-  /*
-  WiFi.begin(ssid, password);
-  Serial.println("");
+  Serial.begin(57600);
+  swSer.begin(57600);
 
-  Serial.print("Connecting to WIFI...");
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  if (MDNS.begin("esp8266")) {
-    Serial.println("MDNS responder started");
-  }
-  */
   MyWebServer.begin();  
   ArduinoOTA.setHostname(MyWebServer.DeviceName.c_str());  
   ArduinoOTA.begin();
@@ -65,9 +43,6 @@ void setup(void){
   server.on("/info", handleGetInfo);
   server.on("/set_night_end", handleSetNightEnd);
   server.on("/set_night_start", handleSetNightStart);
-
-  //server.begin();
-  Serial.println("HTTP server started");
 }
 
 void loop(void){
@@ -89,27 +64,27 @@ void handlePump1()
 }
 
 void handleGetInfo()
-{
+{  
+  info currState = getStateFromArduino();
   StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
-  root["mode"] = random(1,5);
-  root["duration"] = random(1000,10000);
-  root["pump_1_speed"] = random(128,255);
-  root["pump_2_speed"] = random(128,255);
-  root["night_enabled"] = true;
+  root["mode"] = currState.mode;
+  root["duration"] = currState.duration;
+  root["pump_1_speed"] = currState.Pump1Speed;
+  root["pump_2_speed"] = currState.Pump2Speed;
+  root["night_enabled"] = currState.night_mode_enabled;
   JsonObject& night_start = jsonBuffer.createObject();
-  night_start["hours"] = hour(now()) -2;
-  night_start["minutes"] = 0;
+  night_start["hours"] =currState.night_mode_start_hour;
+  night_start["minutes"] =currState.night_mode_start_min;
   JsonObject& night_end = jsonBuffer.createObject();
-  night_end["hours"] = hour(now()) +2;
-  night_end["minutes"] = 0;
+  night_end["hours"] =currState.night_mode_start_hour;
+  night_end["minutes"] =currState.night_mode_start_min;
   
   root["night_start"] = night_start;
   root["night_end"] = night_end;
   
   char buffer[256];
   root.printTo(buffer, sizeof(buffer));
-  Serial.println(buffer);
 
   server.send(200, "application/json", buffer);
 }
@@ -153,4 +128,5 @@ void sendBadRequest()
 {
   server.send(400, "text/plain", "Bad request");
 }
+
 

@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 #include <CmdMessenger.h>  // CmdMessenger
 #include <time.h>
+#include <SoftwareSerial.h>
 //#define WATCHDOG
 
 
@@ -36,7 +37,8 @@ byte night_mode_end_hour;
 byte night_mode_end_min;
 
 // Attach a new CmdMessenger object to the default Serial port
-CmdMessenger cmdMessenger = CmdMessenger(Serial);
+SoftwareSerial soft_serial(4,3);
+CmdMessenger cmdMessenger = CmdMessenger(soft_serial);
 
 
 
@@ -47,8 +49,9 @@ void setup() {
 #ifdef WATCHDOG // Do not change this line!
   wdt_disable();
 #endif // Do not change this line!
-
-  Serial.begin(57600); // Inicia a comunicação com a  porta serial 0 para obter mensagens de depuração.
+  Serial.begin(57600);
+  Serial.println("Started");
+  soft_serial.begin(57600); // Inicia a comunicação com a  porta serial 0 para obter mensagens de depuração.
   // Adds newline to every command
   cmdMessenger.printLfCr();   
 
@@ -66,9 +69,9 @@ void setup() {
 }
 
 void loop() {
-    // read commands from serial:
-    cmdMessenger.feedinSerialData();
-   
+  // read commands from serial:
+  cmdMessenger.feedinSerialData();
+    
   // put your main code here, to run repeatedly:
   Wavemaker();
 }

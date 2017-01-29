@@ -8,11 +8,9 @@ byte Pump1PWM = 0;
 byte Pump2PWM = 0;
 
 
-//const float POWER_PUMP1 = 0.5; // 50%
-//const float POWER_PUMP2 = 0.5; // 50%
+const float POWER_PUMP1 = 0.5; // 50%
+const float POWER_PUMP2 = 0.5; // 50%
 
-const float POWER_PUMP1 = 128; // 50%
-const float POWER_PUMP2 = 128; // 50%
 
 
 void Wavemaker()
@@ -114,8 +112,8 @@ void Wavemaker()
   // night mode
   if (isNightActive())
   {
-    Pump1PWM = POWER_PUMP1;
-    Pump2PWM = POWER_PUMP2;
+    Pump1PWM *= POWER_PUMP1;
+    Pump2PWM *= POWER_PUMP2;
   }
 
   analogWrite(wavemaker1, Pump1PWM);
