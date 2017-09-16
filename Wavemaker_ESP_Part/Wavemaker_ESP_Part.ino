@@ -1,15 +1,13 @@
 #include <Streaming.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
-#include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <SoftwareSerial.h>
 #include <FS.h>
-#include <WiFiManager.h>  
-#include <myWebServer.h>
+#include <myWebServerAsync.h>
 #include <ArduinoOTA.h>
 #include <ArduinoJson.h>
-#include <Time.h>
+#include <TimeLib.h>
 
 struct info {
   unsigned int mode;
@@ -25,7 +23,12 @@ struct info {
   byte night_mode_start_min;
   byte night_mode_end_hour;
   byte night_mode_end_min;
+  long curr_time;
 };
+
+info currState;
+
+time_t lastNtpUpdate = 0;
 
 SoftwareSerial swSer(D6, D5, false, 256);
 
@@ -34,8 +37,8 @@ void setup(void){
   Serial.begin(57600);
   swSer.begin(57600);
 
-  MyWebServer.begin();  
-  ArduinoOTA.setHostname(MyWebServer.DeviceName.c_str());  
+  WebServer.begin();  
+  ArduinoOTA.setHostname(WebServer.DeviceName.c_str());  
   ArduinoOTA.begin();
   
 
@@ -43,90 +46,147 @@ void setup(void){
   server.on("/info", handleGetInfo);
   server.on("/set_night_end", handleSetNightEnd);
   server.on("/set_night_start", handleSetNightStart);
+  server.on("/set_mode", handleSetMode);
 }
 
-void loop(void){
-  ArduinoOTA.handle();
-  MyWebServer.handle();
-}
-
-void handlePump1()
+void loop(void)
 {
-  // get the value of request argument "state" and convert it to an int
-  if (server.hasArg("speed"))
+  ArduinoOTA.handle();
+  WebServer.handle();
+  // update arduino time if needed:
+  if ( (lastNtpUpdate == 0 || (now() - lastNtpUpdate > WebServer.UpdateNTPEvery)*60)
+      && timeStatus() == timeSet)
   {
-    int speedPct = server.arg("speed").toInt();
-    int speed = map(speedPct,0,100,0,255);
-    String speedstr = String(speed);
-   
-    server.send(200, "text/plain", String("Pump 1 is now at ") + speedstr);
+      //syncTime();
   }
 }
 
-void handleGetInfo()
+void handlePump1(AsyncWebServerRequest *request)
+{
+  // get the value of request argument "state" and convert it to an int
+  if (request->hasArg("speed"))
+  {
+    int speedPct = request->arg("speed").toInt();
+    int speed = map(speedPct,0,100,0,255);
+    String speedstr = String(speed);
+   
+    request->send(200, "text/plain", String("Pump 1 is now at ") + speedstr);
+  }
+}
+
+void handleGetInfo(AsyncWebServerRequest *request)
 {  
-  info currState = getStateFromArduino();
+  //getStateFromArduino();
   StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root["mode"] = currState.mode;
   root["duration"] = currState.duration;
   root["pump_1_speed"] = currState.Pump1Speed;
   root["pump_2_speed"] = currState.Pump2Speed;
+  root["curr_time"] = currState.curr_time;
   root["night_enabled"] = currState.night_mode_enabled;
   JsonObject& night_start = jsonBuffer.createObject();
   night_start["hours"] =currState.night_mode_start_hour;
   night_start["minutes"] =currState.night_mode_start_min;
   JsonObject& night_end = jsonBuffer.createObject();
-  night_end["hours"] =currState.night_mode_start_hour;
-  night_end["minutes"] =currState.night_mode_start_min;
+  night_end["hours"] =currState.night_mode_end_hour;
+  night_end["minutes"] =currState.night_mode_end_min;
   
   root["night_start"] = night_start;
   root["night_end"] = night_end;
   
+  
   char buffer[256];
   root.printTo(buffer, sizeof(buffer));
 
-  server.send(200, "application/json", buffer);
+  request->send(200, "application/json", buffer);
 }
 
-void handleSetNightStart()
+void handleSetNightStart(AsyncWebServerRequest *request)
 {
-   if (server.hasArg("hours") && server.hasArg("minutes"))
+  if (request->hasArg("hours") && request->hasArg("minutes"))
   {
-    int hours =  server.arg("hours").toInt();
-    int minutes =  server.arg("minutes").toInt();
+    int hours =  request->arg("hours").toInt();
+    int minutes =  request->arg("minutes").toInt();
     
+  // TODO: validate here:
+    currState.night_mode_start_min = minutes;
+    currState.night_mode_start_hour = hours;
     char str[100];
-    sprintf(str,"Night starts now at %2d:%2d",hours, minutes);
-    server.send(200, "text/plain", str);
+    if (setNightMode(str))
+    {
+      sprintf(str,"Night ends now at %2d:%2d",hours, minutes);
+      request->send(200, F("text/plain"), str);
+    }
+    else
+    {
+       request->send(500, F("text/plain"), str);
+    }
   }
   else
   {
-    sendBadRequest();
+    sendBadRequest(request);
   }
 }
 
-void handleSetNightEnd()
+void handleSetNightEnd(AsyncWebServerRequest *request)
 {
-  if (server.hasArg("hours") && server.hasArg("minutes"))
+  if (request->hasArg("hours") && request->hasArg("minutes"))
   {
-    int hours =  server.arg("hours").toInt();
-    int minutes =  server.arg("minutes").toInt();
-    
+    int hours =  request->arg("hours").toInt();
+    int minutes =  request->arg("minutes").toInt();
+
+    // TODO: validate here:
+    currState.night_mode_end_min = minutes;
+    currState.night_mode_end_hour = hours;
     char str[100];
-    sprintf(str,"Night ends now at %2d:%2d",hours, minutes);
-    server.send(200, "text/plain", str);
+    if (setNightMode(str))
+    {
+      sprintf(str,"Night ends now at %2d:%2d",hours, minutes);
+      request->send(200, F("text/plain"), str);
+    }
+    else
+    {
+       request->send(500, F("text/plain"), str);
+    }
   }
   else
   {
-    sendBadRequest();
+    sendBadRequest(request);
+  }
+}
+
+void handleSetMode(AsyncWebServerRequest *request)
+{
+   if (request->hasArg("mode"))
+  {
+    int mode =  request->arg("mode").toInt();
+   
+    
+    // TODO: validate here:
+    currState.mode = mode;
+    char str[100];
+    if (setMode(str))
+    {
+      sprintf(str,"Mode set to %2d", mode);
+      request->send(200, F("text/plain"), str);
+    }
+    else
+    {
+       request->send(500, F("text/plain"), str);
+    }
+  }
+  else
+  {
+    sendBadRequest(request);
   }
 }
 
 
-void sendBadRequest()
+void sendBadRequest(AsyncWebServerRequest *request)
 {
-  server.send(400, "text/plain", "Bad request");
+  request->send(400, "text/plain", F("Bad request"));
 }
+
 
 

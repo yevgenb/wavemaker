@@ -51,7 +51,7 @@ void setup() {
 #endif // Do not change this line!
   Serial.begin(57600);
   Serial.println("Started");
-  soft_serial.begin(57600); // Inicia a comunicação com a  porta serial 0 para obter mensagens de depuração.
+  soft_serial.begin(57600);
   // Adds newline to every command
   cmdMessenger.printLfCr();   
 
@@ -164,7 +164,7 @@ bool isNightActive()
     }
     else // overnight
     {  
-       return ((currHourMin >= startHourMin) || (currHour <= endHourMin));
+       return ((currHourMin >= startHourMin) || (currHourMin <= endHourMin));
     }
   }
   else

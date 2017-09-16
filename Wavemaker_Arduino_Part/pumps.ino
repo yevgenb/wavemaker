@@ -112,8 +112,13 @@ void Wavemaker()
   // night mode
   if (isNightActive())
   {
-    Pump1PWM *= POWER_PUMP1;
-    Pump2PWM *= POWER_PUMP2;
+    if ((millis() - millis_last_change) >= duration)
+    {
+      millis_last_change = millis();
+      Pump1PWM = random(128,150);
+      Pump2PWM = random(128,150);;
+    }
+    
   }
 
   analogWrite(wavemaker1, Pump1PWM);

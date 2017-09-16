@@ -123,7 +123,7 @@ void OnStatus()
   soft_serial.print(F(","));
   soft_serial.print(night_mode_end_min);
   soft_serial.print(F(","));
-  soft_serial.println(isNightActive()); 
+  soft_serial.println(isNightActive()); ; 
 }
 
 
@@ -137,44 +137,36 @@ void OnSetTime()
 void OnSetNightMode()
 {
   night_mode_enabled = cmdMessenger.readBoolArg();
-  if (night_mode_enabled) // read start/end times
+  
+  int tmp = cmdMessenger.readInt16Arg();
+  if (tmp < 0 || tmp > 23) 
   {
-    int tmp = cmdMessenger.readInt16Arg();
-    if (tmp < 0 || tmp > 23) 
-    {
-       soft_serial.println(F("ERROR: hours should be 0-23"));
-       return;
-    }
-    night_mode_start_hour = tmp;
-    tmp = cmdMessenger.readInt16Arg();
-    if (tmp < 0 || tmp > 59) 
-    {
-       soft_serial.println(F("ERROR: minutes should be 0-59"));
-       return;
-    }
-    night_mode_start_min = tmp;
-    tmp = cmdMessenger.readInt16Arg();
-    if (tmp < 0 || tmp > 23) 
-    {
-       soft_serial.println(F("ERROR: hours should be 0-23"));
-       return;
-    }
-    night_mode_end_hour = tmp;
-    tmp = cmdMessenger.readInt16Arg();
-    if (tmp < 0 || tmp > 59) 
-    {
-       soft_serial.println(F("ERROR: minutes should be 0-59"));
-       return;
-    }
-    night_mode_end_min = tmp;
+     soft_serial.println(F("ERROR: hours should be 0-23"));
+     return;
   }
-  else
+  night_mode_start_hour = tmp;
+  tmp = cmdMessenger.readInt16Arg();
+  if (tmp < 0 || tmp > 59) 
   {
-    night_mode_start_hour = 0;
-    night_mode_start_min = 0;
-    night_mode_end_hour = 0 ;
-    night_mode_end_min = 0;
+     soft_serial.println(F("ERROR: minutes should be 0-59"));
+     return;
   }
+  night_mode_start_min = tmp;
+  tmp = cmdMessenger.readInt16Arg();
+  if (tmp < 0 || tmp > 23) 
+  {
+     soft_serial.println(F("ERROR: hours should be 0-23"));
+     return;
+  }
+  night_mode_end_hour = tmp;
+  tmp = cmdMessenger.readInt16Arg();
+  if (tmp < 0 || tmp > 59) 
+  {
+     soft_serial.println(F("ERROR: minutes should be 0-59"));
+     return;
+  }
+  night_mode_end_min = tmp;
+ 
   saveConfig();
   soft_serial.println(F("OK"));  
 }
